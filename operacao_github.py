@@ -12,13 +12,23 @@ import os
 import sys
 
 # --- CONFIGURAÇÕES FIXAS (PARA O GITHUB) ---
-GROWER_ID_FIXO = 1139788
+GROWER_ID_FIXO = 2266958
 # Dias para analisar para trás (ex: 5 dias)
 DIAS_ANALISE = 7 
 
 # Dados da Estação (Hardcoded para não precisar subir Excel)
 ESTACOES_FIXAS = [
-    {'id_grower': 1139788, 'name': 'Fazenda Guará', 'id_estacao': 52944, 'latitude': -21.6533, 'longitude': -55.4610}
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 6 / P.A Pista', 'id_estacao': 59061, 'latitude': -17.4949, 'longitude': -54.3052},
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 7 / P.A Reservatór', 'id_estacao': 59064, 'latitude': -17.43673, 'longitude': -54.27825},
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 5 / Meio Portela', 'id_estacao': 59063, 'latitude': -17.399, 'longitude': -54.354},
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 3 / VV Deserto', 'id_estacao': 59062, 'latitude': -17.471, 'longitude': -54.432},
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 1 / 106/107', 'id_estacao': 59065, 'latitude': -17.406, 'longitude': -54.43},
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 8 / Beira-Rio', 'id_estacao': 59066, 'latitude': -17.456, 'longitude': -54.5382},
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 9 / SN Cascalheira', 'id_estacao': 59179, 'latitude': -17.439, 'longitude': -54.62},
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 2 / Chapéu', 'id_estacao': 59368, 'latitude': -17.4378, 'longitude': -54.4099},
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 4 / Paraiso Sede', 'id_estacao': 59509, 'latitude': -17.3782, 'longitude': -54.4889},
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 11/ A.C Meio', 'id_estacao': 80340, 'latitude': -17.5339, 'longitude': -54.3444},
+    {'id_grower': GROWER_ID_FIXO, 'name': 'Pla 10 / Planalto Sede', 'id_estacao': 80339, 'latitude': -17.3922, 'longitude': -54.42}
 ]
 
 # --- IMPORTAÇÃO DA AUTENTICAÇÃO ---
