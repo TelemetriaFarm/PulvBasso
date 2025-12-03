@@ -641,15 +641,46 @@ class AnalisadorTelemetriaClima:
             available_metrics = {k: v for k, v in metric_map.items() if k in df_dia.columns and df_dia[k].notna().any()}
             
             df_mapa = df_dia[['Latitude', 'Longitude', 'Datetime', 'duration_sec', 'MachineName'] + list(available_metrics.keys())].dropna(subset=['Latitude', 'Longitude']).copy()
+            
+            # --- OTIMIZAÇÃO CRÍTICA PARA REDUZIR TAMANHO DO ARQUIVO ---
+            # Se tivermos mais de 1500 pontos, vamos pular linhas (downsampling).
+            # Ex: Se tiver 30.000 pontos, pegamos 1 a cada 20 (step=20), resultando em 1500 pontos.
+            qtd_pontos = len(df_mapa)
+            TARGET_POINTS = 1500
+            if qtd_pontos > TARGET_POINTS:
+                step = int(qtd_pontos / TARGET_POINTS)
+                if step < 1: step = 1
+                df_mapa = df_mapa.iloc[::step, :]
+            # ----------------------------------------------------------
+
             segmentos_mapa = []
             if not df_mapa.empty:
                 df_mapa['time_str'] = df_mapa['Datetime'].dt.strftime('%H:%M')
                 df_mapa['hour_of_day'] = df_mapa['Datetime'].dt.hour
+                
+                # Resetar index para garantir que o loop funcione após o iloc
+                df_mapa = df_mapa.reset_index(drop=True) 
+                
                 for i in range(len(df_mapa) - 1):
                     p1, p2 = df_mapa.iloc[i], df_mapa.iloc[i+1]
+                    
+                    # Ignora se os pontos estiverem muito longe (evita traços cruzando o mapa quando pula dias/horas)
+                    if abs(p1['Latitude'] - p2['Latitude']) > 0.05 or abs(p1['Longitude'] - p2['Longitude']) > 0.05:
+                        continue
+
                     props = {col: p1[col] for col in available_metrics if pd.notna(p1[col])}
+                    
+                    # Arredondar valores para economizar caracteres no JSON
+                    for key, val in props.items():
+                        if isinstance(val, float): props[key] = round(val, 2)
+
                     props.update({'time': p1['time_str'], 'hour': int(p1['hour_of_day']), 'machine': p1['MachineName']})
-                    segmentos_mapa.append({'coords': [[p1['Latitude'], p1['Longitude']], [p2['Latitude'], p2['Longitude']]], 'properties': props})
+                    
+                    # Arredondar coordenadas para 5 casas decimais (aprox 1 metro de precisão) economiza muito espaço
+                    coords = [[round(p1['Latitude'], 5), round(p1['Longitude'], 5)], 
+                              [round(p2['Latitude'], 5), round(p2['Longitude'], 5)]]
+                    
+                    segmentos_mapa.append({'coords': coords, 'properties': props})
             
             dados_janela = df_dia[['Datetime', 'duration_sec', 'Operating_Mode', 'CondicaoAplicacao']].copy()
             
