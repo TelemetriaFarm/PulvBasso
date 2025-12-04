@@ -587,6 +587,7 @@ class AnalisadorTelemetriaClima:
         if df.empty: return
 
         df = df.sort_values('Timestamp (sec)')
+        # Calcula duração de cada ponto
         df['duration_sec'] = df.groupby('ImplementID')['Timestamp (sec)'].diff().shift(-1)
         med_dur = df.loc[df['duration_sec'] <= MAX_PULSE_GAP_SECONDS, 'duration_sec'].median()
         med_dur = med_dur if pd.notna(med_dur) and med_dur > 0 else 10
@@ -642,48 +643,61 @@ class AnalisadorTelemetriaClima:
             
             df_mapa = df_dia[['Latitude', 'Longitude', 'Datetime', 'duration_sec', 'MachineName'] + list(available_metrics.keys())].dropna(subset=['Latitude', 'Longitude']).copy()
             
-            # --- OTIMIZAÇÃO CRÍTICA PARA REDUZIR TAMANHO DO ARQUIVO ---
-            # Se tivermos mais de 1500 pontos, vamos pular linhas (downsampling).
-            # Ex: Se tiver 30.000 pontos, pegamos 1 a cada 20 (step=20), resultando em 1500 pontos.
+            # --- OTIMIZAÇÃO V2: MAPA ---
+            # Reduzi de 1500 para 350 pontos. Suficiente para ver o rastro sem travar.
             qtd_pontos = len(df_mapa)
-            TARGET_POINTS = 1500
-            if qtd_pontos > TARGET_POINTS:
-                step = int(qtd_pontos / TARGET_POINTS)
+            TARGET_POINTS_MAP = 350 
+            if qtd_pontos > TARGET_POINTS_MAP:
+                step = int(qtd_pontos / TARGET_POINTS_MAP)
                 if step < 1: step = 1
-                df_mapa = df_mapa.iloc[::step, :]
-            # ----------------------------------------------------------
+                df_mapa = df_mapa.iloc[::step, :].reset_index(drop=True)
 
             segmentos_mapa = []
             if not df_mapa.empty:
                 df_mapa['time_str'] = df_mapa['Datetime'].dt.strftime('%H:%M')
                 df_mapa['hour_of_day'] = df_mapa['Datetime'].dt.hour
                 
-                # Resetar index para garantir que o loop funcione após o iloc
-                df_mapa = df_mapa.reset_index(drop=True) 
-                
                 for i in range(len(df_mapa) - 1):
                     p1, p2 = df_mapa.iloc[i], df_mapa.iloc[i+1]
                     
-                    # Ignora se os pontos estiverem muito longe (evita traços cruzando o mapa quando pula dias/horas)
+                    # Evita linhas gigantes cruzando o mapa (teletransporte)
                     if abs(p1['Latitude'] - p2['Latitude']) > 0.05 or abs(p1['Longitude'] - p2['Longitude']) > 0.05:
                         continue
 
                     props = {col: p1[col] for col in available_metrics if pd.notna(p1[col])}
-                    
-                    # Arredondar valores para economizar caracteres no JSON
+                    # Arredonda valores numéricos para economizar bytes
                     for key, val in props.items():
-                        if isinstance(val, float): props[key] = round(val, 2)
+                        if isinstance(val, (int, float)): props[key] = round(val, 1)
 
                     props.update({'time': p1['time_str'], 'hour': int(p1['hour_of_day']), 'machine': p1['MachineName']})
                     
-                    # Arredondar coordenadas para 5 casas decimais (aprox 1 metro de precisão) economiza muito espaço
-                    coords = [[round(p1['Latitude'], 5), round(p1['Longitude'], 5)], 
-                              [round(p2['Latitude'], 5), round(p2['Longitude'], 5)]]
+                    # Arredonda coordenadas para 4 casas (~10m precisão). Economia brutal de espaço.
+                    coords = [[round(p1['Latitude'], 4), round(p1['Longitude'], 4)], 
+                              [round(p2['Latitude'], 4), round(p2['Longitude'], 4)]]
                     
                     segmentos_mapa.append({'coords': coords, 'properties': props})
             
-            dados_janela = df_dia[['Datetime', 'duration_sec', 'Operating_Mode', 'CondicaoAplicacao']].copy()
+            # --- OTIMIZAÇÃO V2: GRÁFICO (O VILÃO) ---
+            # Aqui estava o problema dos 165MB. O gráfico recebia TODOS os pontos.
+            # Vamos limitar os dados do gráfico também.
+            dados_janela_full = df_dia[['Datetime', 'duration_sec', 'Operating_Mode', 'CondicaoAplicacao']].copy()
             
+            TARGET_POINTS_CHART = 600
+            qtd_chart = len(dados_janela_full)
+            
+            if qtd_chart > TARGET_POINTS_CHART:
+                step_chart = int(qtd_chart / TARGET_POINTS_CHART)
+                if step_chart < 1: step_chart = 1
+                
+                # Pegamos 1 linha a cada X
+                dados_janela = dados_janela_full.iloc[::step_chart, :].copy()
+                
+                # COMPENSAÇÃO: Multiplicamos a duração pelo "step" para o total de horas bater!
+                # Se pegamos 1 ponto a cada 10, esse ponto vale por 10 no gráfico.
+                dados_janela['duration_sec'] = dados_janela['duration_sec'] * step_chart
+            else:
+                dados_janela = dados_janela_full
+
             eventos_calendario.append({
                 'date': data_obj, 'title': self.machine_names_map.get(implement_id, f"ID {implement_id}"),
                 'implement_id': implement_id,
